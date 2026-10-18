@@ -1,0 +1,114 @@
+/*
+ * Copyright 2019 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.restassured.kotlin
+
+import io.restassured.RestAssured
+import io.restassured.module.kotlin.extensions.Extract
+import io.restassured.module.kotlin.extensions.Then
+import io.restassured.module.kotlin.extensions.When
+import mockwebserver3.MockResponse
+import mockwebserver3.MockWebServer
+import mockwebserver3.junit5.StartStop
+import org.hamcrest.Matchers.*
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+
+class KotlinITest {
+    @StartStop
+    var webServer: MockWebServer = MockWebServer()
+
+    @BeforeEach
+    fun `configure rest assured`() {
+        RestAssured.port = webServer.port
+    }
+
+    @AfterEach
+    fun `reset rest assured`() {
+        RestAssured.reset()
+    }
+
+    @Test
+    fun `kotlin extension can validate single expecation for json bodies in 'Then' block when no 'Extract' block is defined`() {
+        // Given
+        givenServerWillReturnJson(""" { "greeting" : "Hello World" } """)
+
+        // When
+        When {
+            get("/greeting")
+        } Then {
+            body("greeting", not(emptyOrNullString()))
+        }
+    }
+
+    @Test
+    fun `kotlin extension can validate multiple expectations for json bodies in 'Then' block when no 'Extract' block is defined`() {
+        // Given
+        givenServerWillReturnJson(""" { "greeting" : "Hello World", "other" : "thing", "something" : "else" } """)
+
+        // When
+        When {
+            get("/greeting")
+        } Then {
+            body("greeting", equalTo("Hello World"))
+            body("other", equalTo("thing"))
+            body("something", equalTo("else"))
+        }
+    }
+
+    @Test
+    fun `kotlin extension can validate json bodies in 'Then' block when 'Extract' block is defined with different path than expectation`() {
+        // Given
+        givenServerWillReturnJson(""" { "greeting" : "Hello World", "other" : "thing" } """)
+
+        // When
+        val greeting : String = When {
+            get("/greeting")
+        } Then {
+            body("greeting", not(emptyOrNullString()))
+        } Extract {
+            path("greeting")
+        }
+
+        // Then
+        assertEquals("Hello World", greeting)
+    }
+
+    @Test
+    fun `kotlin extension can validate json bodies in 'Then' block when 'Extract' block is defined with same path as expectation`() {
+        // Given
+        givenServerWillReturnJson(""" { "greeting" : "Hello World", "other" : "thing" } """)
+
+        // When
+        val other : String = When {
+            get("/greeting")
+        } Then {
+            body("greeting", not(emptyOrNullString()))
+        } Extract {
+            path("other")
+        }
+
+        // Then
+        assertEquals("thing", other)
+    }
+
+    private fun givenServerWillReturnJson(jsonString: String) {
+        val response = MockResponse.Builder().body(jsonString).setHeader("content-type", "application/json").build()
+        webServer.enqueue(response)
+    }
+}
